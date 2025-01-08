@@ -1,0 +1,79 @@
+# Prometheus Configuration for Data Broker Monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# Rule files
+rule_files:
+  - "rules/kafka_rules.yml"
+  - "rules/flink_rules.yml"
+  - "rules/elasticsearch_rules.yml"
+  - "rules/databricks_rules.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Kafka Monitoring
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka-broker:9308']  # JMX Exporter
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+)(?::\d+)?'
+        replacement: '${1}'
+
+  # Flink Monitoring
+  - job_name: 'flink'
+    static_configs:
+      - targets: ['flink-jobmanager:9249']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Elasticsearch Monitoring
+  - job_name: 'elasticsearch'
+    static_configs:
+      - targets: ['elasticsearch:9108']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Databricks Monitoring
+  - job_name: 'databricks'
+    static_configs:
+      - targets: ['databricks-metrics:9090']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+
+  # Node Exporter for Host Metrics
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 10s
+
+# Storage Configuration
+storage:
+  tsdb:
+    retention.time: 30d
+    retention.size: 100GB
+
+# Remote Write Configuration (Optional)
+remote_write:
+  - url: "http://remote-storage:9201/write"
+    queue_config:
+      capacity: 500000
+      max_samples_per_send: 5000
+      batch_send_deadline: 5s
+
+# Remote Read Configuration (Optional)
+remote_read:
+  - url: "http://remote-storage:9201/read"
+    read_recent: true

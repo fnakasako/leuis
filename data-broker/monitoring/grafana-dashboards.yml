@@ -1,0 +1,162 @@
+# Grafana Dashboard Configuration
+
+# Provider Configuration
+apiVersion: 1
+providers:
+  - name: 'Data Broker Dashboards'
+    orgId: 1
+    folder: 'Data Broker'
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
+
+# Dashboards
+dashboards:
+  overview:
+    title: "Data Broker Overview"
+    uid: "data-broker-overview"
+    panels:
+      - title: "Data Pipeline Health"
+        type: "stat"
+        datasource: "prometheus"
+        targets:
+          - expr: 'sum(up{job=~"kafka|flink|elasticsearch|databricks"})/count(up{job=~"kafka|flink|elasticsearch|databricks"})*100'
+            legendFormat: "Pipeline Health"
+      
+      - title: "Data Flow Rates"
+        type: "graph"
+        datasource: "prometheus"
+        targets:
+          - expr: 'rate(kafka_topic_partition_current_offset[5m])'
+            legendFormat: "{{topic}} - Messages/sec"
+
+  kafka_monitoring:
+    title: "Kafka Metrics"
+    uid: "kafka-metrics"
+    panels:
+      - title: "Messages In Per Second"
+        type: "graph"
+        datasource: "prometheus"
+        targets:
+          - expr: 'sum(rate(kafka_server_brokertopicmetrics_messagesin_total[5m])) by (topic)'
+      
+      - title: "Broker Status"
+        type: "stat"
+        datasource: "prometheus"
+        targets:
+          - expr: 'up{job="kafka"}'
+      
+      - title: "Consumer Lag"
+        type: "graph"
+        datasource: "prometheus"
+        targets:
+          - expr: 'kafka_consumergroup_lag'
+
+  flink_monitoring:
+    title: "Flink Job Metrics"
+    uid: "flink-metrics"
+    panels:
+      - title: "Job Status"
+        type: "stat"
+        datasource: "prometheus"
+        targets:
+          - expr: 'flink_jobmanager_job_status'
+      
+      - title: "Records Processed/sec"
+        type: "graph"
+        datasource: "prometheus"
+        targets:
+          - expr: 'rate(flink_taskmanager_job_task_operator_numRecordsOut[5m])'
+      
+      - title: "Checkpoint Duration"
+        type: "graph"
+        datasource: "prometheus"
+        targets:
+          - expr: 'flink_jobmanager_job_lastCheckpointDuration'
+
+  elasticsearch_monitoring:
+    title: "Elasticsearch Metrics"
+    uid: "elasticsearch-metrics"
+    panels:
+      - title: "Cluster Health"
+        type: "stat"
+        datasource: "prometheus"
+        targets:
+          - expr: 'elasticsearch_cluster_health_status'
+      
+      - title: "Document Count"
+        type: "graph"
+        datasource: "prometheus"
+        targets:
+          - expr: 'elasticsearch_indices_docs{index=~".*recent.*"}'
+      
+      - title: "Query Latency"
+        type: "graph"
+        datasource: "prometheus"
+        targets:
+          - expr: 'rate(elasticsearch_indices_search_query_time_seconds[5m])'
+
+  databricks_monitoring:
+    title: "Databricks Metrics"
+    uid: "databricks-metrics"
+    panels:
+      - title: "Cluster Status"
+        type: "stat"
+        datasource: "prometheus"
+        targets:
+          - expr: 'databricks_cluster_status'
+      
+      - title: "Delta Lake Operations"
+        type: "graph"
+        datasource: "prometheus"
+        targets:
+          - expr: 'rate(databricks_delta_operations_count[5m])'
+      
+      - title: "Query Performance"
+        type: "graph"
+        datasource: "prometheus"
+        targets:
+          - expr: 'databricks_sql_query_duration_seconds'
+
+# Alert Rules
+alerting:
+  rules:
+    - name: "Pipeline Health Critical"
+      expr: 'sum(up{job=~"kafka|flink|elasticsearch|databricks"})/count(up{job=~"kafka|flink|elasticsearch|databricks"})*100 < 80'
+      for: "5m"
+      severity: "critical"
+      
+    - name: "High Consumer Lag"
+      expr: 'kafka_consumergroup_lag > 10000'
+      for: "10m"
+      severity: "warning"
+      
+    - name: "Elasticsearch Cluster Yellow"
+      expr: 'elasticsearch_cluster_health_status{color="yellow"} == 1'
+      for: "5m"
+      severity: "warning"
+      
+    - name: "Flink Job Failed"
+      expr: 'flink_jobmanager_job_status{status="FAILED"} == 1'
+      for: "1m"
+      severity: "critical"
+
+# Dashboard Variables
+templating:
+  - name: "job"
+    type: "query"
+    query: "label_values(up, job)"
+  - name: "instance"
+    type: "query"
+    query: "label_values(up{job=~\"$job\"}, instance)"
+  - name: "topic"
+    type: "query"
+    query: "label_values(kafka_topic_partition_current_offset, topic)"
+
+# Time Range Settings
+time:
+  from: "now-6h"
+  to: "now"
+  refresh: "1m"

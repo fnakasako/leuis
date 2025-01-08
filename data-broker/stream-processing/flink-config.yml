@@ -1,0 +1,106 @@
+# Flink Configuration for Stream Processing
+
+# Job Manager Configuration
+jobmanager:
+  rpc.address: flink-jobmanager
+  heap.size: 4096m
+  rpc.port: 6123
+
+# Task Manager Configuration
+taskmanager:
+  heap.size: 8192m
+  numberOfTaskSlots: 8
+  memory:
+    process.size: 12288m
+    network.memory.fraction: 0.1
+    network.memory.min: 1024mb
+    network.memory.max: 2048mb
+
+# Checkpointing Configuration
+execution:
+  checkpointing:
+    interval: 60000  # 1 minute
+    timeout: 600000  # 10 minutes
+    min.pause.between.checkpoints: 30000
+    mode: EXACTLY_ONCE
+    max.concurrent.checkpoints: 1
+
+# State Backend Configuration
+state:
+  backend: rocksdb
+  savepoints.dir: hdfs:///flink/savepoints
+  checkpoints.dir: hdfs:///flink/checkpoints
+
+# Streaming Jobs Configuration
+jobs:
+  arxiv_processor:
+    parallelism: 8
+    source: arxiv_raw
+    sinks:
+      - type: elasticsearch
+        index: arxiv_recent
+        ttl: 864000000  # 10 days
+      - type: delta_lake
+        table: arxiv_historical
+        path: /data/cold-store/arxiv
+        partition_by: date
+
+  github_processor:
+    parallelism: 16
+    source: github_events
+    sinks:
+      - type: elasticsearch
+        index: github_recent
+        ttl: 864000000
+      - type: delta_lake
+        table: github_historical
+        path: /data/cold-store/github
+        partition_by: date,event_type
+
+  news_processor:
+    parallelism: 8
+    source: news_feed
+    sinks:
+      - type: elasticsearch
+        index: news_recent
+        ttl: 864000000
+      - type: delta_lake
+        table: news_historical
+        path: /data/cold-store/news
+        partition_by: date,source
+
+  dns_processor:
+    parallelism: 32
+    source: dns_data
+    sinks:
+      - type: elasticsearch
+        index: dns_recent
+        ttl: 864000000
+      - type: delta_lake
+        table: dns_historical
+        path: /data/cold-store/dns
+        partition_by: date,domain
+
+# Metrics and Monitoring
+metrics:
+  reporters:
+    - name: prometheus
+      port: 9249
+      host: localhost
+  latency:
+    tracking:
+      granularity: operator
+
+# Fault Tolerance
+restart-strategy:
+  type: fixed-delay
+  attempts: 3
+  delay: 10s
+
+# Network Configuration
+network:
+  max-buffers-in-flight: 100
+  detailed-metrics: true
+  request-backoff:
+    initial: 100
+    maximum: 10000

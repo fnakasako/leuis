@@ -1,0 +1,161 @@
+# Elasticsearch Configuration for Hot Storage (10 days retention)
+
+# Cluster Configuration
+cluster:
+  name: "data-broker-hot-store"
+  number_of_nodes: 3
+  heap_size: "16g"
+  node.roles: ["master", "data", "ingest"]
+
+# System Settings
+network:
+  host: 0.0.0.0
+  port: 9200
+  transport_port: 9300
+
+# Index Settings
+index:
+  number_of_shards: 5
+  number_of_replicas: 1
+  refresh_interval: "1s"
+  codec: "best_compression"
+
+# Index Lifecycle Management (ILM)
+ilm:
+  policies:
+    hot_store_policy:
+      phases:
+        hot:
+          min_age: "0ms"
+          actions:
+            rollover:
+              max_age: "1d"
+              max_size: "50gb"
+        delete:
+          min_age: "10d"
+          actions:
+            delete: {}
+
+# Index Templates
+templates:
+  arxiv_recent:
+    index_patterns: ["arxiv_recent-*"]
+    settings:
+      index:
+        lifecycle:
+          name: hot_store_policy
+          rollover_alias: "arxiv_recent"
+    mappings:
+      properties:
+        id: { type: "keyword" }
+        title: { type: "text", analyzer: "english" }
+        abstract: { type: "text", analyzer: "english" }
+        authors: { type: "keyword" }
+        category: { type: "keyword" }
+        timestamp: { type: "date" }
+        year: { type: "integer" }
+        month: { type: "integer" }
+        day: { type: "integer" }
+
+  github_recent:
+    index_patterns: ["github_recent-*"]
+    settings:
+      index:
+        lifecycle:
+          name: hot_store_policy
+          rollover_alias: "github_recent"
+    mappings:
+      properties:
+        event_id: { type: "keyword" }
+        event_type: { type: "keyword" }
+        repository: { type: "keyword" }
+        user: { type: "keyword" }
+        timestamp: { type: "date" }
+        payload: { type: "object", enabled: true }
+        year: { type: "integer" }
+        month: { type: "integer" }
+        day: { type: "integer" }
+
+  news_recent:
+    index_patterns: ["news_recent-*"]
+    settings:
+      index:
+        lifecycle:
+          name: hot_store_policy
+          rollover_alias: "news_recent"
+    mappings:
+      properties:
+        article_id: { type: "keyword" }
+        title: { type: "text", analyzer: "english" }
+        content: { type: "text", analyzer: "english" }
+        source: { type: "keyword" }
+        author: { type: "keyword" }
+        category: { type: "keyword" }
+        timestamp: { type: "date" }
+        year: { type: "integer" }
+        month: { type: "integer" }
+        day: { type: "integer" }
+
+  dns_recent:
+    index_patterns: ["dns_recent-*"]
+    settings:
+      index:
+        lifecycle:
+          name: hot_store_policy
+          rollover_alias: "dns_recent"
+    mappings:
+      properties:
+        query_id: { type: "keyword" }
+        domain: { type: "keyword" }
+        record_type: { type: "keyword" }
+        response: { type: "keyword" }
+        timestamp: { type: "date" }
+        year: { type: "integer" }
+        month: { type: "integer" }
+        day: { type: "integer" }
+
+# Search Settings
+search:
+  max_buckets: 100000
+  default_search_timeout: "30s"
+  max_concurrent_searches: 10
+
+# Security Settings
+xpack:
+  security:
+    enabled: true
+    transport.ssl.enabled: true
+    http.ssl.enabled: true
+
+# Monitoring Settings
+monitoring:
+  collection:
+    enabled: true
+    interval: 10s
+  exporters:
+    prometheus:
+      enabled: true
+      host: "localhost"
+      port: 9108
+
+# Memory Settings
+bootstrap:
+  memory_lock: true
+
+# Cache Settings
+cache:
+  recycler.page.limit.heap: "50%"
+  field.max_size: "40000"
+  field.type: "node"
+
+# Thread Pool Settings
+thread_pool:
+  search:
+    size: 30
+    queue_size: 1000
+  write:
+    size: 16
+    queue_size: 10000
+  get:
+    size: 16
+    queue_size: 1000

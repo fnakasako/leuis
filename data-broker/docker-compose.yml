@@ -1,0 +1,127 @@
+version: '3.8'
+
+services:
+  # Kafka Stack
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      - zookeeper-logs:/var/lib/zookeeper/log
+
+  kafka-broker:
+    image: confluentinc/cp-kafka:7.3.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9308:9308"  # JMX Exporter
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_JMX_PORT: 9308
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      - ./ingestion/kafka:/etc/kafka/config:ro
+
+  # Stream Processing
+  flink-jobmanager:
+    image: apache/flink:1.17
+    ports:
+      - "8081:8081"
+      - "9249:9249"  # Metrics
+    command: jobmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
+    volumes:
+      - ./stream-processing:/opt/flink/conf
+      - flink-checkpoints:/opt/flink/checkpoints
+
+  flink-taskmanager:
+    image: apache/flink:1.17
+    depends_on:
+      - flink-jobmanager
+    command: taskmanager
+    environment:
+      - JOB_MANAGER_RPC_ADDRESS=flink-jobmanager
+    volumes:
+      - ./stream-processing:/opt/flink/conf
+      - flink-checkpoints:/opt/flink/checkpoints
+
+  # Hot Storage
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.7.0
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=changeme
+    volumes:
+      - ./storage/hot-store:/usr/share/elasticsearch/config
+      - elasticsearch-data:/usr/share/elasticsearch/data
+
+  # Monitoring Stack
+  prometheus:
+    image: prom/prometheus:v2.44.0
+    ports:
+      - "9090:9090"
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    volumes:
+      - ./monitoring:/etc/prometheus
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:9.5.2
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - grafana-data:/var/lib/grafana
+
+  alertmanager:
+    image: prom/alertmanager:v0.25.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - alertmanager-data:/alertmanager
+
+  node-exporter:
+    image: prom/node-exporter:v1.5.0
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+
+volumes:
+  zookeeper-data:
+  zookeeper-logs:
+  kafka-data:
+  flink-checkpoints:
+  elasticsearch-data:
+  prometheus-data:
+  grafana-data:
+  alertmanager-data:
+
+networks:
+  default:
+    name: data-broker-network
+    driver: bridge

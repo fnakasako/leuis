@@ -1,0 +1,52 @@
+# Kafka Cluster Configuration
+bootstrap.servers: kafka-broker:9092
+
+# Topic Configurations
+num.partitions: 8
+replication.factor: 3
+
+# Default Topic Settings
+default.topic.config:
+  retention.ms: 259200000  # 3 days retention
+  cleanup.policy: delete
+
+# Producer Configurations
+producer.config:
+  acks: all
+  retries: 3
+  batch.size: 16384
+  linger.ms: 1
+  compression.type: lz4
+
+# Consumer Configurations
+consumer.config:
+  group.id: data-broker-consumer
+  auto.offset.reset: earliest
+  enable.auto.commit: false
+  isolation.level: read_committed
+
+# Security Settings
+security.protocol: SASL_SSL
+sasl.mechanism: PLAIN
+
+# Topic Definitions
+topics:
+  - name: arxiv_raw
+    partitions: 8
+    retention.ms: 604800000  # 7 days
+    cleanup.policy: delete
+  
+  - name: github_events
+    partitions: 16
+    retention.ms: 604800000
+    cleanup.policy: delete
+    
+  - name: news_feed
+    partitions: 8
+    retention.ms: 604800000
+    cleanup.policy: delete
+    
+  - name: dns_data
+    partitions: 32
+    retention.ms: 604800000
+    cleanup.policy: delete

@@ -1,0 +1,159 @@
+# Databricks Delta Lake Configuration
+
+# Cluster Configuration
+cluster:
+  spark_version: "11.3.x-scala2.12"
+  node_type_id: "i3.2xlarge"  # Optimized for I/O intensive workloads
+  driver_node_type_id: "i3.xlarge"
+  min_workers: 2
+  max_workers: 8
+  autoscale:
+    min_workers: 2
+    max_workers: 8
+  spark_conf:
+    "spark.databricks.delta.preview.enabled": "true"
+    "spark.databricks.delta.properties.defaults.enableChangeDataFeed": "true"
+    "spark.databricks.delta.optimizeWrite.enabled": "true"
+    "spark.databricks.delta.autoCompact.enabled": "true"
+
+# Storage Configuration
+storage:
+  base_path: "/data/cold-store"
+  file_format: "delta"
+  compression: "snappy"
+  
+# Table Definitions
+tables:
+  arxiv_historical:
+    path: "/data/cold-store/arxiv"
+    partition_columns: ["year", "month", "day"]
+    clustering_columns: ["category", "author"]
+    vacuum_retention_hours: 168  # 7 days
+    optimize_schedule: "DAILY"
+    schema:
+      - name: "id"
+        type: "string"
+      - name: "title"
+        type: "string"
+      - name: "abstract"
+        type: "string"
+      - name: "authors"
+        type: "array<string>"
+      - name: "category"
+        type: "string"
+      - name: "timestamp"
+        type: "timestamp"
+      - name: "year"
+        type: "int"
+      - name: "month"
+        type: "int"
+      - name: "day"
+        type: "int"
+
+  github_historical:
+    path: "/data/cold-store/github"
+    partition_columns: ["year", "month", "day", "event_type"]
+    clustering_columns: ["repository", "user"]
+    vacuum_retention_hours: 168
+    optimize_schedule: "DAILY"
+    schema:
+      - name: "event_id"
+        type: "string"
+      - name: "event_type"
+        type: "string"
+      - name: "repository"
+        type: "string"
+      - name: "user"
+        type: "string"
+      - name: "timestamp"
+        type: "timestamp"
+      - name: "payload"
+        type: "struct"
+      - name: "year"
+        type: "int"
+      - name: "month"
+        type: "int"
+      - name: "day"
+        type: "int"
+
+  news_historical:
+    path: "/data/cold-store/news"
+    partition_columns: ["year", "month", "day", "source"]
+    clustering_columns: ["category", "author"]
+    vacuum_retention_hours: 168
+    optimize_schedule: "DAILY"
+    schema:
+      - name: "article_id"
+        type: "string"
+      - name: "title"
+        type: "string"
+      - name: "content"
+        type: "string"
+      - name: "source"
+        type: "string"
+      - name: "author"
+        type: "string"
+      - name: "category"
+        type: "string"
+      - name: "timestamp"
+        type: "timestamp"
+      - name: "year"
+        type: "int"
+      - name: "month"
+        type: "int"
+      - name: "day"
+        type: "int"
+
+  dns_historical:
+    path: "/data/cold-store/dns"
+    partition_columns: ["year", "month", "day"]
+    clustering_columns: ["domain", "record_type"]
+    vacuum_retention_hours: 168
+    optimize_schedule: "DAILY"
+    schema:
+      - name: "query_id"
+        type: "string"
+      - name: "domain"
+        type: "string"
+      - name: "record_type"
+        type: "string"
+      - name: "response"
+        type: "string"
+      - name: "timestamp"
+        type: "timestamp"
+      - name: "year"
+        type: "int"
+      - name: "month"
+        type: "int"
+      - name: "day"
+        type: "int"
+
+# Optimization Settings
+optimization:
+  auto_optimize: true
+  auto_compact: true
+  vacuum_interval_hours: 24
+  optimize_write: true
+  optimize_read: true
+  zorder_columns:
+    arxiv_historical: ["category", "timestamp"]
+    github_historical: ["repository", "timestamp"]
+    news_historical: ["source", "timestamp"]
+    dns_historical: ["domain", "timestamp"]
+
+# Unity Catalog Settings
+unity_catalog:
+  enabled: true
+  catalog_name: "data_broker"
+  schema_name: "public"
+  default_warehouse: "data_broker_warehouse"
+
+# Access Control
+access_control:
+  admins:
+    - "data-engineering-admin"
+  readers:
+    - "data-scientists"
+    - "analysts"
+  writers:
+    - "data-engineers"
